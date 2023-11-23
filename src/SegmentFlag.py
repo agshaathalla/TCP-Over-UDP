@@ -1,5 +1,5 @@
 import struct
-from Flags import SYN_FLAG, ACK_FLAG, FIN_FLAG
+from src.Flags import SYN_FLAG, ACK_FLAG, FIN_FLAG, DEF_FLAG
 
 class SegmentFlag:
     '''
@@ -29,7 +29,11 @@ class SegmentFlag:
         '''
         Returns the 1-byte flag representation of this SegmentFlag object.
         '''
-        return struct.pack('?', self.syn) + struct.pack('?', self.ack) + struct.pack('?', self.fin)
+        flag = DEF_FLAG
+        flag |= SYN_FLAG if self.syn else 0
+        flag |= ACK_FLAG if self.ack else 0
+        flag |= FIN_FLAG if self.fin else 0
+        return flag
     
 if __name__ == '__main__':
     # Test SegmentFlag

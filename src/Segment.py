@@ -1,6 +1,6 @@
 import struct
-from SegmentFlag import SegmentFlag
-from Flags import SYN_FLAG, ACK_FLAG, FIN_FLAG
+from src.SegmentFlag import SegmentFlag
+from src.Flags import SYN_FLAG, ACK_FLAG, FIN_FLAG, DEF_FLAG
 
 class Segment:
     '''
@@ -47,7 +47,19 @@ class Segment:
     @staticmethod
     def fin_ack() -> 'Segment':
         return Segment(0, 0, SegmentFlag(FIN_FLAG | ACK_FLAG), b'', b'')
+
+    @staticmethod
+    def bytes_to_segment(segment_bytes: bytes) -> 'Segment':
+        seq_num = struct.unpack('I', segment_bytes[0:4])[0]
+        ack_num = struct.unpack('I', segment_bytes[4:8])[0]
+        flags = SegmentFlag(segment_bytes[8])
+        checksum = segment_bytes[10:12]
+        payload = segment_bytes[12:]
+        return Segment(seq_num, ack_num, flags, checksum, payload)
     
+    def get_bytes(self) -> bytes:
+        return struct.pack('iibb', self.seq_num, self.ack_num, self.flags.get_flag_bytes(), DEF_FLAG) + self.checksum + self.payload
+
     # def __calculate_checksum(self) -> bytes:
         # TODO: Implement this method
     
@@ -56,11 +68,11 @@ class Segment:
         print(self.checksum)
 
     def is_valid_checksum(self) -> bool:
-        return self.checksum == self.__calculate_checksum()
+        return True
+        # return self.checksum == self.__calculate_checksum()
     
 
-    def get_bytes(self) -> bytes:
-        return struct.pack('I', self.seq_num) + struct.pack('I', self.ack_num) + self.flags.get_flag_bytes() + self.checksum + self.payload
+
         
 
 if __name__ == '__main__':

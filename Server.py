@@ -12,7 +12,20 @@ class Server:
         print(f'[!] File name: {filename}')
         self.client_ip = []
         self.client_port = []
-        
+        self.file = self.file_partition()
+        self.WINDOW_SIZE = 3
+
+    def file_partition(self):
+        file = open(self.filename, 'rb').read()
+        # print(len(file))
+        array_of_content = []
+        while len(file) >= 32756:
+            array_of_content.append(file[:32756])
+            file = file[32756:]
+        if len(file) > 0:
+            array_of_content.append(file)
+        return array_of_content
+
     def run(self):
         pass
 
@@ -94,41 +107,43 @@ class Server:
         '''
         Server as Sender
         '''
-        segment = Segment.syn(0) # [DELETE] dummy segment
+        print(f'[!] Initiating file transfer to client on port {port}')
+
         seq_val = 0
         seq_base = 0
-        seq_max = self.WINDOW_SIZE - 1
+        seq_max = self.WINDOW_SIZE - 1      # NOTE kalau si spek itu di + 1
         while True:
-            while seq_base <= seq_val <= seq_max:
+            # Sending Segment
+            while seq_base <= seq_val <= seq_max and seq_val < len(self.file):
+                print(f'[!] Sending segment {seq_val}')
                 segment = Segment.syn(seq_val)
-                # [CODE] send file
-                # [CODE] send segment
+                segment.add_payload(self.file[seq_val])
+                self.connection.send('localhost', port, segment)
                 seq_val += 1
 
-            if segment.seq_num > seq_base:
-                seq_max = (seq_max - seq_base) + segment.seq_num
-                seq_base = segment.seq_num
-                break
-            
-            if seq_base <= segment.seq_num <= seq_max:
+            if seq_val >= len(self.file):
                 break
 
-            # Receive ack from client
+            # Listening for ack from client
             try:
-                # [CODE] listening segment
-                segment = Segment.ack(0, 0) # [DELETE] dummy segment
-                if segment.flags.ack:
-                    # [CODE] write file
-                    # [CODE] send fin_ack (dummy fin_ack)
-                    seq_base = segment.ack_num + 1
-                    seq_max = seq_base + self.WINDOW_SIZE - 1
+                segment, _ = self.connection.listen()
+                segment = Segment.bytes_to_segment(segment)
+
+                # Updating seq_max and seq_base
+                if segment.flags.ack and (segment.seq_num > seq_base):
+                    seq_max = (seq_max - seq_base) + segment.seq_num
+                    seq_base = segment.seq_num
                 else:
                     raise ValueError('Not ACK')
+
+                
             except Exception as e:
                 print(e)
                 break
         
         # File transfer done
+        # print('slesaislesai')
+        self.connection.send('localhost', port, Segment.fin())
         # [CODE] close connection
 
 if __name__ == '__main__':
@@ -141,4 +156,5 @@ if __name__ == '__main__':
     server.listening_connection()
     for i in range(len(server.client_port)):
         server.handshake(server.client_port[i], i + 1)
+        server.file_transfer(server.client_port[i])
 

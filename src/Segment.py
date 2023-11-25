@@ -30,23 +30,23 @@ class Segment:
 
     @staticmethod
     def syn(seq_num: int) -> 'Segment':
-        return Segment(seq_num, 0, SegmentFlag(SYN_FLAG), b'', b'')
+        return Segment(seq_num, 0, SegmentFlag(SYN_FLAG), b'\x00\x00', b'')
     
     @staticmethod
     def ack(seq_num: int, ack_num: int) -> 'Segment':
-        return Segment(seq_num, ack_num, SegmentFlag(ACK_FLAG), b'', b'')
+        return Segment(seq_num, ack_num, SegmentFlag(ACK_FLAG), b'\x00\x00', b'')
     
     @staticmethod
     def syn_ack() -> 'Segment':
-        return Segment(0, 0, SegmentFlag(SYN_FLAG | ACK_FLAG), b'', b'')
+        return Segment(0, 0, SegmentFlag(SYN_FLAG | ACK_FLAG), b'\x00\x00', b'')
     
     @staticmethod
     def fin() -> 'Segment':
-        return Segment(0, 0, SegmentFlag(FIN_FLAG), b'', b'')
+        return Segment(0, 0, SegmentFlag(FIN_FLAG), b'\x00\x00', b'')
     
     @staticmethod
     def fin_ack() -> 'Segment':
-        return Segment(0, 0, SegmentFlag(FIN_FLAG | ACK_FLAG), b'', b'')
+        return Segment(0, 0, SegmentFlag(FIN_FLAG | ACK_FLAG), b'\x00\x00', b'')
 
     @staticmethod
     def bytes_to_segment(segment_bytes: bytes) -> 'Segment':
@@ -57,6 +57,9 @@ class Segment:
         payload = segment_bytes[12:]
         return Segment(seq_num, ack_num, flags, checksum, payload)
     
+    def add_payload(self, payload: bytes):
+        self.payload += payload
+    
     def get_bytes(self) -> bytes:
         return struct.pack('iibb', self.seq_num, self.ack_num, self.flags.get_flag_bytes(), DEF_FLAG) + self.checksum + self.payload
 
@@ -64,8 +67,8 @@ class Segment:
         # TODO: Implement this method
     
     def update_checksum(self):
-        self.checksum = self.__calculate_checksum()
-        print(self.checksum)
+        # self.checksum = self.__calculate_checksum()
+        self.checksum = b'\x00\x00'
 
     def is_valid_checksum(self) -> bool:
         return True
@@ -77,6 +80,6 @@ class Segment:
 
 if __name__ == '__main__':
     # Test Segment
-    segment = Segment.syn(123)
-    print(segment)
-    print(segment.get_bytes())
+    seg = Segment.syn(0)
+    print(seg.get_bytes())
+    print(len(seg.get_bytes()))

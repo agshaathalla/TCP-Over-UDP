@@ -1,5 +1,6 @@
 # from Node import Node
 from argparse import ArgumentParser
+from socket import socket
 from src.Connection import Connection
 from src.Segment import Segment
 
@@ -9,9 +10,8 @@ class Server:
         print(f'[!] Server started on port {port}')
         self.filename = filename
         print(f'[!] File name: {filename}')
-        self.ip = []
-        self.port = []
-        self.countConnection = 0
+        self.client_ip = []
+        self.client_port = []
         
     def run(self):
         pass
@@ -19,47 +19,78 @@ class Server:
     def message(self, segment):
         pass
 
-    def three_way_handshake(self):
-        print("[!] [Handshake] Listening for clients...")
-        count = 0
+    def __handle_request(self):
         while True:
-            print(f'[!] [Handshake] Handshake to clinet {count + 1}')
-            # Receive SYN
-            while True:
+            try:
                 segment, address = self.connection.listen()
-                segment = Segment.bytes_to_segment(segment)
-                # print(segment)
-                if segment.flags.syn:
-                    print(f'[!] [Handshake] [Client {count + 1}] SYN received')
-                    break
-            
-            # Send SYN-ACK
-            syn_ack = Segment.syn_ack()
-            self.connection.send(address[0], address[1], syn_ack)
-            print(f'[!] [Handshake] [Client {count + 1}] SYN-ACK sent')
+                print(f'[!] [Listening] Getting Client {len(self.client_port) + 1} from port {address[1]}')
 
-            # Receive ACK
-            while True:
-                segment, address = self.connection.listen()
-                
+                if address[1] in self.client_port:
+                    print(f'[X] [Listening] [Client {len(self.client_port) + 1}] Port {address[1]} is listed')
+                    print('[X] [Listening] Retrying...')
+                    continue
                 segment = Segment.bytes_to_segment(segment)
-                if segment.flags.ack:
-                    print(f'[!] [Handshake] [Client {count + 1}] ACK received')
-                    count += 1
-                    self.countConnection += 1
-                    self.ip.append(address[0])
-                    self.port.append(address[1])
+                
+                if segment.flags.syn:
+                    print(f'[!] [Listening] [Client {len(self.client_port) + 1}] SYN received')
+                    self.client_ip.append(address[0])
+                    self.client_port.append(address[1])
                     break
-            answer = input('[?] Listen more? (y/n): ')
-            if answer == 'n' or answer == 'N':
+                else:
+                    print(f'[X] [Listening] [Client {len(self.client_port) + 1}] SYN not received. Retrying...')
+
+            except socket.timeout:
+                print(f'[X] [Listening] [Client {len(self.client_port + 1) + 1}] Timeout. Retrying...')
+
+            except Exception as e:
+                print(e)
                 break
 
-        print(f'ip: {self.ip}')
-        print(f'port: {self.port}')
 
+    def listening_connection(self):
+        while True:
+            print("[!] [Listening] Listening for clients...")
+            self.__handle_request()
+                
+            answer = input('[?] [Listening] Listen more? (y/n): ')
+            match answer:
+                case 'y' | 'Y':
+                    continue
+                case 'n' | 'N':
+                    break
+                case _:
+                    print('[X] Invalid input. Retrying...')
 
+        print(f'[V] [Listening] Done Listening. {len(self.client_port)} clients connected')
+        for i in range(len(self.client_port)):
+            print(f'    [{i + 1}] {self.client_ip[i]}:{self.client_port[i]}')
 
-    def file_transfer(self):
+    def handshake(self, client_port: int, count: int):
+        print(f"[!] [Client {count}] Initiating three-way handshake with client on port {client_port}...")
+        
+        # Send SYN
+        print(f"[!] [Client {count}] [Handshake] Sending SYN request from port {self.connection.port} to port {client_port}...")
+        syn = Segment.syn(0)
+        self.connection.send('localhost', client_port, syn)
+
+        # Listening SYN-ACK
+        while True:
+            print(f"[!] [Client {count}] [Handshake] Listening for response from client...")
+            segment, address = self.connection.listen()
+            
+            segment = Segment.bytes_to_segment(segment)
+            if segment.flags.syn and segment.flags.ack and address[1] == client_port:
+                print(f"[V] [Client {count}] [Handshake] SYN-ACK received from port {client_port}")
+                break
+            else:
+                print(f"[X] [Client {count}] [Handshake] SYN-ACK not received. Retrying...")
+
+        # Send ACK
+        ack = Segment.ack(0, 0)
+        self.connection.send('localhost', client_port, ack)
+        print(f"[!] [Client {count}] [Handshake] ACK sent to port {client_port}")
+
+    def file_transfer(self, port: int):
         '''
         Server as Sender
         '''
@@ -107,4 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('file_name', type=str, help='File name to write to')
     args = parser.parse_args()
     server = Server(args.broadcast_port, args.file_name)
-    server.three_way_handshake()
+    server.listening_connection()
+    for i in range(len(server.client_port)):
+        server.handshake(server.client_port[i], i + 1)
+

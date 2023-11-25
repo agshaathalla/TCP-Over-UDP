@@ -7,14 +7,15 @@ class Connection:
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.bind((self.ip, self.port))
-        print("[!] Creating Connection...")
+        print("[!] Creating Connection...") 
     
     def send(self, ip_remote: str, port_remote: int, msg: Segment):
             self.socket.sendto(msg.get_bytes(), (ip_remote, port_remote))
+            # print(msg.get_bytes())
 
     def listen(self):
             self.socket.settimeout(20)
-            data, addr = self.socket.recvfrom(32756)
+            data, addr = self.socket.recvfrom(32768)
             # print(data.decode("utf-8"))
             return data, addr 
     

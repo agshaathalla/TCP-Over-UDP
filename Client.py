@@ -62,6 +62,7 @@ class Client:
             
             # Send SYN-ACK
             syn_ack = Segment.syn_ack()
+            syn_ack.update_checksum()
             self.connection.send(address[0], address[1], syn_ack)
             print('[!] [Handshake] SYN-ACK sent')
 
@@ -95,6 +96,7 @@ class Client:
 
                 # accepting close connection
                 if segment.flags.fin:
+                    segment.update_checksum()
                     self.connection.send('localhost', self.broadcast_port, Segment.fin_ack())
                     break
                     # [CODE] write file
@@ -102,10 +104,12 @@ class Client:
                     # [CODE] send fin_ack (dummy fin_ack)
 
                 # Accepting new segment
-                if segment.flags.syn and segment.seq_num == segment_val: # tambah checksum 
+                if segment.flags.syn and segment.seq_num == segment_val and segment.is_valid_checksum(): # tambah checksum 
+                    print(f'[!] Checksum valid')
                     self.file_data.append(segment.payload)
                     segment_val += 1
                     ack = Segment.ack(segment_val, 0)
+                    ack.update_checksum()
                     self.connection.send(address[0], address[1], ack)
 
                 else:

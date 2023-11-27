@@ -14,7 +14,7 @@ class Connection:
             # print(msg.get_bytes())
 
     def listen(self):
-            self.socket.settimeout(20)
+            self.socket.settimeout(999)
             data, addr = self.socket.recvfrom(32768)
             # print(data.decode("utf-8"))
             return data, addr 

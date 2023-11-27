@@ -84,6 +84,7 @@ class Server:
         # Send SYN
         print(f"[!] [Client {count}] [Handshake] Sending SYN request from port {self.connection.port} to port {client_port}...")
         syn = Segment.syn(0)
+        syn.update_checksum()
         self.connection.send('localhost', client_port, syn)
 
         # Listening SYN-ACK
@@ -100,6 +101,7 @@ class Server:
 
         # Send ACK
         ack = Segment.ack(0, 0)
+        ack.update_checksum()
         self.connection.send('localhost', client_port, ack)
         print(f"[!] [Client {count}] [Handshake] ACK sent to port {client_port}")
 
@@ -118,6 +120,7 @@ class Server:
                 print(f'[!] Sending segment {seq_val}')
                 segment = Segment.syn(seq_val)
                 segment.add_payload(self.file[seq_val])
+                segment.update_checksum()
                 self.connection.send('localhost', port, segment)
                 seq_val += 1
 

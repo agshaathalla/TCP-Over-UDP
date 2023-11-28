@@ -10,16 +10,15 @@ Program ini merupakan implementasi dari Transmission Control Protocol dengan mem
 
 ## Cara Penggunaan
 1. Clone repository ini
-2. Lakukan instalasi untuk library socket dengan cara `pip install socket`
-3. Jalankan server dengan command sebagai berikut:
+2. Jalankan server dengan command sebagai berikut:
 Server:
 ```
   python3 Server.py <port> <filename>
 ```
-4. Jalankan client dengan command sebagai berikut: 
+3. Jalankan client dengan command sebagai berikut: 
 Client:
 ```
   python3 Client.py <port> <server_port> <filename_send>
 ```
-5. Jika ingin membuat client dengan port yang berbeda dapat mengulangi langkah 4 dan pastikan port yang digunakan sudah benar <br>
+4. Jika ingin membuat client dengan port yang berbeda dapat mengulangi langkah 4 dan pastikan port yang digunakan sudah benar <br>
 `note: Pastikan nama file dan port client berbeda dengan server`

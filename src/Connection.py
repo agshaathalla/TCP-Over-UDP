@@ -11,12 +11,10 @@ class Connection:
     
     def send(self, ip_remote: str, port_remote: int, msg: Segment):
             self.socket.sendto(msg.get_bytes(), (ip_remote, port_remote))
-            # print(msg.get_bytes())
 
-    def listen(self):
-            self.socket.settimeout(999)
+    def listen(self, time: int):
+            self.socket.settimeout(time)
             data, addr = self.socket.recvfrom(32768)
-            # print(data.decode("utf-8"))
             return data, addr 
     
     def close(self):

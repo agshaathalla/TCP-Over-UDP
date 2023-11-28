@@ -37,7 +37,7 @@ class Client:
             # Receive SYN
             while True:
                 try:
-                    segment, address = self.connection.listen()
+                    segment, address = self.connection.listen(180)
                     print(f'[!] [Handshake] Received handshake from server on port {address[1]}')
 
                     if address[1] != self.broadcast_port:
@@ -68,7 +68,7 @@ class Client:
 
             # Receive ACK
             while True:
-                segment, address = self.connection.listen()
+                segment, address = self.connection.listen(180)
                 
                 segment = Segment.bytes_to_segment(segment)
                 if segment.flags.ack:
@@ -82,38 +82,66 @@ class Client:
         '''
         Client as Receiver
         '''
-
-        segment = Segment.syn(0) # [DELETE] dummy segment
+        print("=====================================")
         segment_val = 0
+        segment_err = 0
         while True:
             try:
-                print(f'[!] Listening for segment {segment_val}')
-                # [CODE] listening segment
-                segment, address = self.connection.listen()
-                # print(len(segment))
+                print(f'[!] [File Transfer] Listening for segment {segment_val}...')
+                segment, address = self.connection.listen(30)
                 segment = Segment.bytes_to_segment(segment)
-                # print(len(segment.get_bytes()))
+                print(f'[!] [File Transfer] Receiving segment {segment.seq_num}...')
+                # print(len(segment.get_bytes() ))
 
                 # accepting close connection
                 if segment.flags.fin:
+                    print('[V] [File Transfer] FIN received')
                     segment.update_checksum()
+                    print('[!] [File Transfer] Sending FIN-ACK')
                     self.connection.send('localhost', self.broadcast_port, Segment.fin_ack())
+                    print('[V] [File Transfer] Closing connection')
                     break
-                    # [CODE] write file
-                    
-                    # [CODE] send fin_ack (dummy fin_ack)
 
                 # Accepting new segment
-                if segment.flags.syn and segment.seq_num == segment_val and segment.is_valid_checksum(): # tambah checksum 
-                    print(f'[!] Checksum valid')
-                    self.file_data.append(segment.payload)
-                    segment_val += 1
-                    ack = Segment.ack(segment_val, 0)
-                    ack.update_checksum()
-                    self.connection.send(address[0], address[1], ack)
+                if segment.flags.syn:
+                    if segment.seq_num <= segment_val:
+                        print(f'[V] [File Transfer] Segment {segment.seq_num} received')
+                        
+                        if segment.is_valid_checksum():
+                            print(f'[V] [File Transfer] Checksum valid')
+                            if len(self.file_data) == segment.seq_num:
+                                self.file_data.append(segment.payload)
+                                segment_val += 1
+                                ack = Segment.ack(segment_val, 0)
+                                ack.update_checksum()
+                                self.connection.send(address[0], address[1], ack)
+                                print(f'[V] [File Transfer] ACK {segment_val} sent')
+                                
+                            print(f'[V] [File Transfer] Total segment received: {len(self.file_data)}')
+                            
+                        else:
+                            segment_err += 1
+                            print('[X] [File Transfer] Checksum invalid')
+                            print('[X] [File Transfer] Retransmitting ACK...')
+                        
+                    else:
+                        segment_err += 1
+                        print(f'[X] [File Transfer] Segment {segment.seq_num} received. Expected {segment_val}')
+                        ack = Segment.ack(segment_val, 0)
+                        ack.update_checksum()
+                        self.connection.send(address[0], address[1], ack)
+                        print(f'[V] [File Transfer] ACK {segment_val} sent')
+
+                    
+
 
                 else:
-                    break
+                    segment = Segment.ack(segment_val, 0)
+                    self.connection.send('localhost', self.broadcast_port, segment)
+                    print(f"        Segment_val {segment_val} not received. Retrying...")
+                    # print(segment)
+                
+                print('----------------------------------------------------------')
 
             except Exception as e:
                 print(e)

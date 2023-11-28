@@ -26,16 +26,11 @@ class Server:
             array_of_content.append(file)
         return array_of_content
 
-    def run(self):
-        pass
-
-    def message(self, segment):
-        pass
-
     def __handle_request(self):
         while True:
             try:
-                segment, address = self.connection.listen()
+                print("[!] [Listening] Listening for clients...")
+                segment, address = self.connection.listen(20)
                 print(f'[!] [Listening] Getting Client {len(self.client_port) + 1} from port {address[1]}')
 
                 if address[1] in self.client_port:
@@ -52,8 +47,18 @@ class Server:
                 else:
                     print(f'[X] [Listening] [Client {len(self.client_port) + 1}] SYN not received. Retrying...')
 
-            except socket.timeout:
-                print(f'[X] [Listening] [Client {len(self.client_port + 1) + 1}] Timeout. Retrying...')
+            except TimeoutError:
+                print(f'[X] [Listening] Timeout. Retrying...')
+                answer = input('[?] [Listening] Listen more? (y/n): ')
+                while answer not in ['y', 'n']:
+                    print('[X] [Listening] Invalid answer')
+                    answer = input('[?] [Listening] Listen more? (y/n): ')
+
+                match answer:
+                    case 'y':
+                        continue
+                    case 'n':
+                        break
 
             except Exception as e:
                 print(e)
@@ -62,23 +67,26 @@ class Server:
 
     def listening_connection(self):
         while True:
-            print("[!] [Listening] Listening for clients...")
             self.__handle_request()
                 
             answer = input('[?] [Listening] Listen more? (y/n): ')
+            while answer not in ['y', 'n']:
+                print('[X] [Listening] Invalid answer')
+                answer = input('[?] [Listening] Listen more? (y/n): ')
+
             match answer:
-                case 'y' | 'Y':
+                case 'y':
                     continue
-                case 'n' | 'N':
+                case 'n':
                     break
-                case _:
-                    print('[X] Invalid input. Retrying...')
 
         print(f'[V] [Listening] Done Listening. {len(self.client_port)} clients connected')
         for i in range(len(self.client_port)):
             print(f'    [{i + 1}] {self.client_ip[i]}:{self.client_port[i]}')
+            
 
     def handshake(self, client_port: int, count: int):
+        print("=====================================")
         print(f"[!] [Client {count}] Initiating three-way handshake with client on port {client_port}...")
         
         # Send SYN
@@ -90,7 +98,7 @@ class Server:
         # Listening SYN-ACK
         while True:
             print(f"[!] [Client {count}] [Handshake] Listening for response from client...")
-            segment, address = self.connection.listen()
+            segment, address = self.connection.listen(9999)
             
             segment = Segment.bytes_to_segment(segment)
             if segment.flags.syn and segment.flags.ack and address[1] == client_port:
@@ -104,11 +112,13 @@ class Server:
         ack.update_checksum()
         self.connection.send('localhost', client_port, ack)
         print(f"[!] [Client {count}] [Handshake] ACK sent to port {client_port}")
+        
 
     def file_transfer(self, port: int):
         '''
         Server as Sender
         '''
+        print("=====================================")
         print(f'[!] Initiating file transfer to client on port {port}')
 
         seq_val = 0
@@ -117,7 +127,7 @@ class Server:
         while True:
             # Sending Segment
             while seq_base <= seq_val <= seq_max and seq_val < len(self.file):
-                print(f'[!] Sending segment {seq_val}')
+                print(f'[!] [Client {port}] [Transfer] Sending segment {seq_val}')
                 segment = Segment.syn(seq_val)
                 segment.add_payload(self.file[seq_val])
                 segment.update_checksum()
@@ -125,29 +135,73 @@ class Server:
                 seq_val += 1
 
             if seq_val >= len(self.file):
+                print(f'[V] [Client {port}] [Transfer] File transfer done')
                 break
+
+            
 
             # Listening for ack from client
             try:
-                segment, _ = self.connection.listen()
+                print(f'[!] [Client {port}] [Transfer] Listening for ACK from client...')
+                segment, _ = self.connection.listen(5)
                 segment = Segment.bytes_to_segment(segment)
 
                 # Updating seq_max and seq_base
-                if segment.flags.ack and (segment.seq_num > seq_base):
-                    seq_max = (seq_max - seq_base) + segment.seq_num
-                    seq_base = segment.seq_num
-                else:
-                    raise ValueError('Not ACK')
+                if segment.flags.ack:
+                    if (segment.seq_num > seq_base):
+                        print(f'[V] [Client {port}] [Transfer] ACK {segment.seq_num} received')
+                        seq_max = (seq_max - seq_base) + segment.seq_num
+                        seq_base = segment.seq_num
 
+                    else:
+                        print(f'[X] [Client {port}] [Transfer] ACK {segment.seq_num} received')
+                        print(f'[X] [Client {port}] [Transfer] Retransmitting segment {segment.seq_num}')
+                        seq_val = segment.seq_num
+                        seq_base = seq_val
+                        seq_max = seq_base + self.WINDOW_SIZE - 1
+                else:
+                    raise ValueError('ACK not received')
                 
+            except TimeoutError:
+                print(f'[X] [Client {port}] [Transfer] Timeout. Retry sending segment {seq_val - 1}')
+                pass
+
+            except ValueError as e:
+                print(f'[X] [Client {port}] [Transfer] {e}')
+                continue
+
+            print('----------------------------------------------------------')
+
+        
+        
+    def close_connection(self, port: int):
+        print("=====================================")
+        print("[!] Closing connection...")
+        while True:
+            print(f'[!] [Client {port}] [Closing] Sending FIN')
+            self.connection.send('localhost', port, Segment.fin())
+            print(f'[!] [Client {port}] [Closing] Listening for FIN-ACK')
+            try:
+                segment, _ = self.connection.listen(5)
+                segment = Segment.bytes_to_segment(segment)
+                if segment.flags.fin and segment.flags.ack:
+                    print(f'[V] [Client {port}] [Closing] FIN-ACK received')
+                    break
+                else:
+                    raise ValueError('Not FIN-ACK')
             except Exception as e:
                 print(e)
-                break
+                print(f'[X] [Client {port}] [Closing] FIN-ACK not received. Retrying...')
+                continue
+        print(f'[V] [Client {port}] [Closing] Connection closed\n\n')
+
+    def server_main(self):
+        self.listening_connection()
+        for i in range(len(self.client_port)):
+            self.handshake(self.client_port[i], i + 1)
+            self.file_transfer(self.client_port[i])
+            self.close_connection(self.client_port[i])
         
-        # File transfer done
-        # print('slesaislesai')
-        self.connection.send('localhost', port, Segment.fin())
-        # [CODE] close connection
 
 if __name__ == '__main__':
     # Parse arguments
@@ -155,9 +209,6 @@ if __name__ == '__main__':
     parser.add_argument('broadcast_port', type=int, help='Port to broadcast on')
     parser.add_argument('file_name', type=str, help='File name to write to')
     args = parser.parse_args()
-    server = Server(args.broadcast_port, args.file_name)
-    server.listening_connection()
-    for i in range(len(server.client_port)):
-        server.handshake(server.client_port[i], i + 1)
-        server.file_transfer(server.client_port[i])
 
+    server = Server(args.broadcast_port, args.file_name)
+    server.server_main()
